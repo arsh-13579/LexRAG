@@ -105,6 +105,10 @@ class RAGPipeline:
         answer = self.generator.generate(question, reranked_chunks)
 
         # store in cache
+        # store in cache
+        if len(self.cache) > 1000:
+            oldest_key = next(iter(self.cache))
+            del self.cache[oldest_key]
         self.cache[cache_key] = answer
 
         # build sources list

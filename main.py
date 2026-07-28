@@ -87,6 +87,12 @@ async def ingest(request: Request, file: UploadFile = File(...), document_type: 
     # read file bytes
     contents = await file.read()
 
+    if len(contents) > 10 * 1024 * 1024:  #10MB limit
+        raise HTTPException(
+            status_code=400,
+            detail="File too large, Maximum size is 10MB"
+        )
+
     # extract text from PDF
     try:
         pdf = fitz.open(stream=contents, filetype="pdf")
@@ -133,6 +139,11 @@ async def query(request: Request, body: QueryRequest):
             status_code=400,
             detail="Question cannot be empty"
         )
+    if len(body.question) > 1000:
+        raise HTTPException(
+            status_code=400,
+            detail="Question too long. Maximum 1000 characters."
+        )
 
     # run query pipeline
     try:
@@ -168,6 +179,11 @@ async def query_stream(request: Request, body: QueryRequest):
         raise HTTPException(
             status_code=400,
             detail="Question cannot be empty"
+        )
+    if len(body.question) > 1000:
+        raise HTTPException(
+            status_code=400,
+            detail="Question too long. Maximum 1000 characters."
         )
 
     # streaming generator
