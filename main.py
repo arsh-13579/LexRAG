@@ -1,6 +1,9 @@
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import fitz
@@ -8,6 +11,7 @@ from fastapi.responses import FileResponse
 
 from rag.pipeline import RAGPipeline
 
+limiter = Limiter(key_func=get_remote_address)
 
 # ─────────────────────────────────────────
 # 1. LIFESPAN — load pipeline once
@@ -25,6 +29,8 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ─────────────────────────────────────────
 # 2. PYDANTIC MODELS
@@ -69,10 +75,8 @@ async def serve_frontend():
     return FileResponse("index.html")
 
 @app.post("/ingest", response_model=IngestResponse)
-async def ingest(
-    file: UploadFile = File(...),
-    document_type: str = "general"
-):
+@limiter.limit("5/minute")
+async def ingest(request: Request, file: UploadFile = File(...), document_type: str = "general"):
     # validate file type
     if not file.filename.endswith(".pdf"):
         raise HTTPException(
@@ -121,9 +125,10 @@ async def ingest(
 
 
 @app.post("/query", response_model=QueryResponse)
-async def query(request: QueryRequest):
+@limiter.limit("10/minute")
+async def query(request: Request, body: QueryRequest):
     # validate question
-    if not request.question.strip():
+    if not body.question.strip():
         raise HTTPException(
             status_code=400,
             detail="Question cannot be empty"
@@ -132,9 +137,9 @@ async def query(request: QueryRequest):
     # run query pipeline
     try:
         result = app.state.pipeline.query(
-            question=request.question,
-            k=request.k,
-            top_k=request.top_k
+            question=body.question,
+            k=body.k,
+            top_k=body.top_k
         )
     except Exception as e:
         raise HTTPException(
@@ -156,9 +161,10 @@ async def query(request: QueryRequest):
 
 
 @app.post("/query-stream")
-async def query_stream(request: QueryRequest):
+@limiter.limit("10/minute")
+async def query_stream(request: Request, body: QueryRequest):
     # validate question
-    if not request.question.strip():
+    if not body.question.strip():
         raise HTTPException(
             status_code=400,
             detail="Question cannot be empty"
@@ -168,9 +174,9 @@ async def query_stream(request: QueryRequest):
     async def token_generator():
         try:
             async for token in app.state.pipeline.query_stream(
-                question=request.question,
-                k=request.k,
-                top_k=request.top_k
+                question=body.question,
+                k=body.k,
+                top_k=body.top_k
             ):
                 yield token
         except Exception as e:
