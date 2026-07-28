@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LexRAG — Legal Document Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #e8e8f0;
+            color: #2d2d3a;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── HEADER ── */
+        header {
+            padding: 14px 28px;
+            background: linear-gradient(135deg, #c4b5fd 0%, #93c5fd 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 12px rgba(139, 92, 246, 0.2);
+        }
+
+        .logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e1b4b;
+            letter-spacing: -0.5px;
+        }
+
+        .logo span {
+            color: #4338ca;
+        }
+
+        .header-badge {
+            background: rgba(255,255,255,0.4);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.6);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #1e1b4b;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #16a34a;
+            box-shadow: 0 0 6px #16a34a;
+        }
+
+        /* ── MAIN LAYOUT ── */
+        .main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ── SIDEBAR ── */
+        .sidebar {
+            width: 290px;
+            background: #f0eeff;
+            border-right: 1px solid #d4c8f8;
+            padding: 22px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
+            overflow-y: auto;
+        }
+
+        .sidebar-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #7c6af7;
+            margin-bottom: 10px;
+        }
+
+        /* ── UPLOAD ── */
+        .upload-area {
+            border: 2px dashed #c4b5fd;
+            border-radius: 14px;
+            padding: 22px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s;
+            background: white;
+        }
+
+        .upload-area:hover {
+            border-color: #7c6af7;
+            background: #faf8ff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(124, 106, 247, 0.12);
+        }
+
+        .upload-area.dragover {
+            border-color: #7c6af7;
+            background: #f5f0ff;
+        }
+
+        .upload-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .upload-text {
+            font-size: 13px;
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .upload-text strong {
+            color: #7c6af7;
+            font-weight: 600;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .doc-type-select {
+            width: 100%;
+            background: white;
+            border: 1.5px solid #c4b5fd;
+            color: #2d2d3a;
+            padding: 9px 12px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+            margin-top: 10px;
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .doc-type-select:focus {
+            border-color: #7c6af7;
+        }
+
+        .upload-btn {
+            width: 100%;
+            padding: 11px;
+            background: linear-gradient(135deg, #a78bfa, #60a5fa);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.25s;
+            box-shadow: 0 3px 10px rgba(124, 106, 247, 0.3);
+            letter-spacing: 0.3px;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 16px rgba(124, 106, 247, 0.4);
+        }
+
+        .upload-btn:disabled {
+            background: #d1d5db;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ── INGESTED DOCS ── */
+        .doc-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .doc-item {
+            background: white;
+            border: 1.5px solid #ddd6fe;
+            border-radius: 10px;
+            padding: 10px 13px;
+            font-size: 12px;
+        }
+
+        .doc-item .doc-name {
+            color: #3730a3;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .doc-item .doc-chunks {
+            color: #6b7280;
+            margin-top: 3px;
+            font-size: 11px;
+        }
+
+        .doc-type-tag {
+            display: inline-block;
+            margin-top: 5px;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #ede9fe, #dbeafe);
+            color: #4338ca;
+        }
+
+        /* ── CHAT AREA ── */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #ebebf3;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 28px 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-width: 760px;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            align-items: flex-start;
+        }
+
+        .message-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .message-bubble {
+            padding: 14px 18px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.65;
+            max-width: 100%;
+        }
+
+        .message.user .message-bubble {
+            background: linear-gradient(135deg, #a78bfa, #60a5fa);
+            color: white;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 3px 12px rgba(124, 106, 247, 0.25);
+        }
+
+        .message.assistant .message-bubble {
+            background: white;
+            border: 1.5px solid #e5e7eb;
+            border-bottom-left-radius: 4px;
+            color: #1f2937;
+            white-space: pre-wrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        /* ── SOURCES ── */
+        .sources {
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-width: 760px;
+        }
+
+        .sources-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #7c6af7;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .source-item {
+            background: #faf8ff;
+            border: 1.5px solid #ede9fe;
+            border-radius: 10px;
+            padding: 10px 13px;
+            font-size: 12px;
+            color: #4b5563;
+            line-height: 1.55;
+        }
+
+        .source-score {
+            display: inline-block;
+            margin-top: 5px;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #ede9fe, #dbeafe);
+            color: #4338ca;
+        }
+
+        /* ── EMPTY STATE ── */
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+        }
+
+        .empty-state .icon {
+            font-size: 56px;
+            filter: drop-shadow(0 4px 8px rgba(124,106,247,0.2));
+        }
+
+        .empty-state p {
+            font-size: 16px;
+            color: #9ca3af;
+            font-weight: 400;
+        }
+
+        .empty-state .sub {
+            font-size: 13px;
+            color: #c4b5fd;
+            font-weight: 500;
+        }
+
+        /* ── INPUT ── */
+        .input-area {
+            padding: 16px 28px;
+            border-top: 1px solid #d4c8f8;
+            background: #f0eeff;
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            background: white;
+            border: 1.5px solid #c4b5fd;
+            border-radius: 14px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-wrapper:focus-within {
+            border-color: #7c6af7;
+            box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.1);
+        }
+
+        #question-input {
+            flex: 1;
+            background: none;
+            border: none;
+            color: #1f2937;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            resize: none;
+            line-height: 1.5;
+            max-height: 120px;
+        }
+
+        #question-input::placeholder {
+            color: #9ca3af;
+        }
+
+        .send-btn {
+            padding: 13px 24px;
+            background: linear-gradient(135deg, #a78bfa, #60a5fa);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: all 0.25s;
+            box-shadow: 0 3px 10px rgba(124, 106, 247, 0.3);
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 16px rgba(124, 106, 247, 0.4);
+        }
+
+        .send-btn:disabled {
+            background: #d1d5db;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ── TOAST ── */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s;
+            z-index: 100;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+
+        .toast.error {
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            color: #991b1b;
+            border: 1px solid #f87171;
+        }
+
+        /* ── TYPING INDICATOR ── */
+        .typing {
+            display: flex;
+            gap: 5px;
+            padding: 14px 18px;
+            background: white;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            width: fit-content;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .typing span {
+            width: 7px;
+            height: 7px;
+            background: linear-gradient(135deg, #a78bfa, #60a5fa);
+            border-radius: 50%;
+            animation: bounce 1.2s infinite;
+        }
+
+        .typing span:nth-child(2) { animation-delay: 0.2s; }
+        .typing span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-7px); }
+        }
+
+        /* scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+    <div class="logo">Lex<span>RAG</span></div>
+    <div class="header-badge">
+        <div class="status-dot"></div>
+        Legal Document Assistant
+    </div>
+</header>
+
+<div class="main">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div>
+            <div class="sidebar-section-title">Upload Document</div>
+            <div class="upload-area" id="upload-area">
+                <div class="upload-icon">📄</div>
+                <div class="upload-text">
+                    <strong>Click to upload</strong> or drag & drop<br>
+                    PDF files only
+                </div>
+                <input type="file" id="file-input" accept=".pdf">
+            </div>
+            <select class="doc-type-select" id="doc-type">
+                <option value="general">General / Court Judgment</option>
+                <option value="contract">Contract / NDA</option>
+            </select>
+            <button class="upload-btn" id="upload-btn" disabled>
+                ✦ Upload & Ingest
+            </button>
+        </div>
+
+        <div>
+            <div class="sidebar-section-title">Ingested Documents</div>
+            <div class="doc-list" id="doc-list">
+                <div style="font-size:12px; color:#9ca3af; text-align:center; padding: 12px 0;">No documents yet</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="chat-area">
+        <div class="messages" id="messages">
+            <div class="empty-state" id="empty-state">
+                <div class="icon">⚖️</div>
+                <p>Upload a legal document to get started</p>
+                <div class="sub">Contracts · Court Judgments · Compliance Docs</div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-wrapper">
+                <textarea
+                    id="question-input"
+                    placeholder="Ask a question about your legal documents..."
+                    rows="1"
+                ></textarea>
+            </div>
+            <button class="send-btn" id="send-btn">Ask ✦</button>
+        </div>
+    </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+    let selectedFile = null;
+    let isLoading = false;
+
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    const uploadBtn = document.getElementById('upload-btn');
+    const docType = document.getElementById('doc-type');
+    const docList = document.getElementById('doc-list');
+    const messages = document.getElementById('messages');
+    const emptyState = document.getElementById('empty-state');
+    const questionInput = document.getElementById('question-input');
+    const sendBtn = document.getElementById('send-btn');
+    const toast = document.getElementById('toast');
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            selectedFile = file;
+            uploadArea.querySelector('.upload-text').innerHTML =
+                `<strong>${file.name}</strong><br>${(file.size / 1024).toFixed(1)} KB`;
+            uploadBtn.disabled = false;
+        }
+    });
+
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.name.endsWith('.pdf')) {
+            selectedFile = file;
+            uploadArea.querySelector('.upload-text').innerHTML =
+                `<strong>${file.name}</strong><br>${(file.size / 1024).toFixed(1)} KB`;
+            uploadBtn.disabled = false;
+        } else {
+            showToast('Only PDF files are accepted', 'error');
+        }
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+        if (!selectedFile) return;
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Ingesting...';
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        try {
+            const res = await fetch(`/ingest?document_type=${docType.value}`, {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(`✅ ${data.filename} — ${data.chunks_stored} chunks stored`, 'success');
+                addDocToList(data.filename, data.chunks_stored, data.document_type);
+                hideEmptyState();
+            } else {
+                showToast(`❌ ${data.detail}`, 'error');
+            }
+        } catch (err) {
+            showToast('Upload failed — is the server running?', 'error');
+        }
+
+        uploadBtn.textContent = '✦ Upload & Ingest';
+        uploadBtn.disabled = false;
+        selectedFile = null;
+        fileInput.value = '';
+        uploadArea.querySelector('.upload-text').innerHTML =
+            '<strong>Click to upload</strong> or drag & drop<br>PDF files only';
+    });
+
+    sendBtn.addEventListener('click', sendQuestion);
+
+    questionInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendQuestion();
+        }
+    });
+
+    questionInput.addEventListener('input', () => {
+        questionInput.style.height = 'auto';
+        questionInput.style.height = questionInput.scrollHeight + 'px';
+    });
+
+    async function sendQuestion() {
+        const question = questionInput.value.trim();
+        if (!question || isLoading) return;
+
+        isLoading = true;
+        sendBtn.disabled = true;
+        questionInput.value = '';
+        questionInput.style.height = 'auto';
+        hideEmptyState();
+
+        addMessage('user', question);
+        const typingEl = addTypingIndicator();
+
+        try {
+            const res = await fetch('/query-stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question, k: 6, top_k: 3 }),
+            });
+
+            typingEl.remove();
+            const assistantMsg = addMessage('assistant', '');
+            const bubble = assistantMsg.querySelector('.message-bubble');
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let fullAnswer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const token = decoder.decode(value);
+                fullAnswer += token;
+                bubble.textContent = fullAnswer;
+                messages.scrollTop = messages.scrollHeight;
+            }
+
+            const sourceRes = await fetch('/query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question, k: 6, top_k: 3 }),
+            });
+            const sourceData = await sourceRes.json();
+
+            if (sourceData.sources && sourceData.sources.length > 0) {
+                addSources(assistantMsg, sourceData.sources);
+            }
+
+        } catch (err) {
+            typingEl.remove();
+            addMessage('assistant', 'Something went wrong. Please try again.');
+        }
+
+        isLoading = false;
+        sendBtn.disabled = false;
+    }
+
+    function addMessage(role, text) {
+        const div = document.createElement('div');
+        div.className = `message ${role}`;
+        div.innerHTML = `
+            <div class="message-label">${role === 'user' ? 'You' : 'LexRAG'}</div>
+            <div class="message-bubble">${text}</div>
+        `;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+        return div;
+    }
+
+    function addTypingIndicator() {
+        const div = document.createElement('div');
+        div.className = 'message assistant';
+        div.innerHTML = `
+            <div class="message-label">LexRAG</div>
+            <div class="typing">
+                <span></span><span></span><span></span>
+            </div>
+        `;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+        return div;
+    }
+
+    function addSources(msgEl, sources) {
+        const sourcesDiv = document.createElement('div');
+        sourcesDiv.className = 'sources';
+        sourcesDiv.innerHTML = `<div class="sources-label">Sources</div>`;
+        sources.forEach((source) => {
+            const item = document.createElement('div');
+            item.className = 'source-item';
+            item.innerHTML = `
+                ${source.content}
+                <div class="source-score">Relevance: ${source.score}</div>
+            `;
+            sourcesDiv.appendChild(item);
+        });
+        msgEl.appendChild(sourcesDiv);
+    }
+
+    function addDocToList(filename, chunks, type) {
+        const existing = docList.querySelector('[style]');
+        if (existing) existing.remove();
+        const item = document.createElement('div');
+        item.className = 'doc-item';
+        item.innerHTML = `
+            <div class="doc-name">📄 ${filename}</div>
+            <div class="doc-chunks">${chunks} chunks stored</div>
+            <div class="doc-type-tag">${type}</div>
+        `;
+        docList.appendChild(item);
+    }
+
+    function hideEmptyState() {
+        if (emptyState) emptyState.style.display = 'none';
+    }
+
+    function showToast(msg, type) {
+        toast.textContent = msg;
+        toast.className = `toast ${type} show`;
+        setTimeout(() => toast.className = 'toast', 3000);
+    }
+</script>
+</body>
+</html>
