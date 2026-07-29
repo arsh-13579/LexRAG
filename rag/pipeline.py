@@ -57,7 +57,7 @@ class RAGPipeline:
         Returns number of chunks stored.
         """
         # chunk the document
-        new_chunks = chunk_legal_document(text, document_type)
+        new_chunks = chunk_legal_document(text, document_type, self.embeddings)
 
         # store chunks in memory for BM25
         self.chunks.extend(new_chunks)
@@ -73,7 +73,7 @@ class RAGPipeline:
 
         return len(new_chunks)
 
-    def query(self, question: str, k: int = 10, top_k: int = 3) -> dict:
+    def query(self, question: str, k: int = 20, top_k: int = 5) -> dict:
         """
         Runs full RAG pipeline for a question.
         Returns answer and sources.
@@ -126,8 +126,8 @@ class RAGPipeline:
     async def query_stream(
         self,
         question: str,
-        k: int = 10,
-        top_k: int = 3
+        k: int = 20,
+        top_k: int = 5
     ) -> AsyncGenerator[str, None]:
         """
         Streaming version of query.

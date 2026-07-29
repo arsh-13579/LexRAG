@@ -1,11 +1,13 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
+from langchain_experimental.text_splitter import SemanticChunker
 
 
-def chunk_legal_document(text: str, document_type: str = "general") -> list[str]:
+def chunk_legal_document(text: str, document_type: str = "general", embeddings=None) -> list[str]:
     """
     Chunks legal documents smartly based on document type.
-    - contracts: structure-aware (splits on headings first)
-    - judgments/general: recursive character splitting
+    - contract: structure-aware (splits on headings first)
+    - judgment: semantic chunking (splits on meaning shift)
+    - general: recursive character splitting
     """
 
     if document_type == "contract":
@@ -20,7 +22,6 @@ def chunk_legal_document(text: str, document_type: str = "general") -> list[str]
         )
         header_chunks = header_splitter.split_text(text)
 
-        # each header chunk may still be too large — split further recursively
         recursive_splitter = RecursiveCharacterTextSplitter(
             chunk_size=500,
             chunk_overlap=100,
@@ -34,8 +35,26 @@ def chunk_legal_document(text: str, document_type: str = "general") -> list[str]
 
         return final_chunks
 
+    elif document_type == "judgment":
+        # large legal judgments — semantic chunking for meaning-based splits
+        if embeddings is None:
+            # fallback to recursive if no embeddings provided
+            recursive_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=500,
+                chunk_overlap=100,
+                separators=["\n\n", "\n", " ", ""]
+            )
+            return recursive_splitter.split_text(text)
+
+        semantic_splitter = SemanticChunker(
+            embeddings=embeddings,
+            breakpoint_threshold_type="percentile",
+            breakpoint_threshold_amount=90
+        )
+        return semantic_splitter.split_text(text)
+
     else:
-        # court judgments and compliance docs — pure recursive splitting
+        # general documents — pure recursive splitting
         recursive_splitter = RecursiveCharacterTextSplitter(
             chunk_size=500,
             chunk_overlap=100,

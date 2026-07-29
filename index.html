@@ -522,8 +522,9 @@
                 <input type="file" id="file-input" accept=".pdf">
             </div>
             <select class="doc-type-select" id="doc-type">
-                <option value="general">General / Court Judgment</option>
+                <option value="general">General Document</option>
                 <option value="contract">Contract / NDA</option>
+                <option value="judgment">Court Judgment (Semantic)</option>
             </select>
             <button class="upload-btn" id="upload-btn" disabled>
                 ✦ Upload & Ingest
@@ -615,7 +616,7 @@
     uploadBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
         uploadBtn.disabled = true;
-        uploadBtn.textContent = 'Ingesting...';
+        uploadBtn.textContent = 'Ingesting... (large docs may take 1-2 mins)';
 
         const formData = new FormData();
         formData.append('file', selectedFile);
@@ -676,7 +677,7 @@
             const res = await fetch('/query-stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question, k: 6, top_k: 3 }),
+                body: JSON.stringify({ question, k: 20, top_k: 5 }),
             });
 
             typingEl.remove();

@@ -7,6 +7,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import fitz
+import pymupdf4llm
 from fastapi.responses import FileResponse
 
 from rag.pipeline import RAGPipeline
@@ -95,11 +96,16 @@ async def ingest(request: Request, file: UploadFile = File(...), document_type: 
 
     # extract text from PDF
     try:
-        pdf = fitz.open(stream=contents, filetype="pdf")
-        text = ""
-        for page in pdf:
-            text += page.get_text()
-        pdf.close()
+        # save to temp file (pymupdf4llm needs a file path)
+        with open("temp_upload.pdf", "wb") as tmp:
+            tmp.write(contents)
+
+        # extract as clean markdown — preserves structure for legal docs
+        text = pymupdf4llm.to_markdown("temp_upload.pdf")
+
+        # cleanup
+        os.remove("temp_upload.pdf")
+
     except Exception as e:
         raise HTTPException(
             status_code=400,
