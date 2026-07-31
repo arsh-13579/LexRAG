@@ -161,6 +161,21 @@ Open `http://localhost:8000` in your browser.
 
 ---
 
+## Three-Way Comparison: LexRAG vs ChatGPT vs Gemini
+
+Tested on Sukanya Shantha v. Union of India [2024] INSC 753 — a landmark Supreme Court judgment on caste-based discrimination in prisons.
+
+| | LexRAG | ChatGPT | Gemini |
+|---|---|---|---|
+| Factual accuracy | ✅ Correct | ✅ Correct | ✅ Correct |
+| Response time | ✅ ~2.8s | ✅ ~2.9s | ❌ ~7s |
+| Hallucination on unknown questions | ✅ Refused to answer | ❌ Gave confident wrong answer | ❌ Gave confident wrong answer |
+| Sources cited with relevance scores | ✅ Yes | ❌ No | ❌ No |
+| Works on private documents | ✅ Yes | ⚠️ Uploads to OpenAI servers | ⚠️ Uploads to Google servers |
+
+### Key Finding
+For questions about events not mentioned in the document (post-judgment implementation, 2025 developments), ChatGPT and Gemini generated detailed confident answers from their training data — impossible to verify what came from the document vs what was hallucinated. LexRAG correctly responded "I cannot find this information in the provided documents" — because it only answers from retrieved context.
+
 ## What I Learned Building This
 
 - **Hybrid search matters for legal RAG** — pure vector search missed exact citations until BM25 was added
