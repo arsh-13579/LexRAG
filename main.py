@@ -56,6 +56,7 @@ class IngestResponse(BaseModel):
     document_type: str
     chunks_stored: int
     message: str
+    doc_id: str
 
 
 # ─────────────────────────────────────────
@@ -70,6 +71,22 @@ async def health():
         "embeddings": "all-MiniLM-L6-v2",
         "reranker": "ms-marco-MiniLM-L-6-v2"
     }
+@app.get("/documents")
+async def get_documents():
+    """Returns list of all ingested documents."""
+    return {"documents": app.state.pipeline.get_documents()}
+
+
+@app.post("/select-document/{doc_id}")
+async def select_document(doc_id: str):
+    """Switch active document for querying."""
+    success = app.state.pipeline.select_document(doc_id)
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Document '{doc_id}' not found"
+        )
+    return {"message": f"Now querying: {doc_id}", "active_doc": doc_id}
 
 @app.get("/")
 async def serve_frontend():
@@ -121,7 +138,7 @@ async def ingest(request: Request, file: UploadFile = File(...), document_type: 
 
     # run ingestion pipeline
     try:
-        chunks_stored = app.state.pipeline.ingest(text, document_type)
+        doc_info = app.state.pipeline.ingest(text, file.filename, document_type)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -131,8 +148,9 @@ async def ingest(request: Request, file: UploadFile = File(...), document_type: 
     return IngestResponse(
         filename=file.filename,
         document_type=document_type,
-        chunks_stored=chunks_stored,
-        message=f"{file.filename} ingested successfully as {document_type} document"
+        chunks_stored=doc_info["chunks"],
+        message=f"{file.filename} ingested successfully as {document_type} document",
+        doc_id=doc_info["doc_id"]
     )
 
 
