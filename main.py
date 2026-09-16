@@ -67,7 +67,7 @@ class IngestResponse(BaseModel):
 async def health():
     return {
         "status": "ok",
-        "model": "llama3-8b-8192",
+        "model": "openai/gpt-oss-120b",
         "embeddings": "all-MiniLM-L6-v2",
         "reranker": "ms-marco-MiniLM-L-6-v2"
     }

@@ -8,7 +8,7 @@ class Generator:
     Supports both regular and streaming responses.
     """
 
-    def __init__(self, api_key: str, model_name: str = "llama-3.3-70b-versatile"):
+    def __init__(self, api_key: str, model_name: str = "openai/gpt-oss-120b"):
         self.llm = ChatGroq(
             api_key=api_key,
             model=model_name,
