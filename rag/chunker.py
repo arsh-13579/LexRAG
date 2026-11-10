@@ -11,7 +11,7 @@ def chunk_legal_document(text: str, document_type: str = "general", embeddings=N
     """
 
     if document_type == "contract":
-        # contracts have clear headings — use structure-aware chunking first
+        # for clear headings structure-aware chunking
         headers_to_split_on = [
             ("#", "Section"),
             ("##", "Subsection"),
@@ -36,7 +36,7 @@ def chunk_legal_document(text: str, document_type: str = "general", embeddings=N
         return final_chunks
 
     elif document_type == "judgment":
-        # large legal judgments — semantic chunking for meaning-based splits
+        # semantic chunking for meaning-based splits
         if embeddings is None:
             # fallback to recursive if no embeddings provided
             recursive_splitter = RecursiveCharacterTextSplitter(
@@ -54,7 +54,7 @@ def chunk_legal_document(text: str, document_type: str = "general", embeddings=N
         return semantic_splitter.split_text(text)
 
     else:
-        # general documents — pure recursive splitting
+        # for general documents pure recursive splitting
         recursive_splitter = RecursiveCharacterTextSplitter(
             chunk_size=500,
             chunk_overlap=100,

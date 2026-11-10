@@ -19,7 +19,7 @@ class Generator:
         """
         Builds a grounded prompt from query and reranked chunks.
         """
-        # extract just the text from (chunk, score) tuples
+        # extracting text from (chunk, score)
         context_pieces = [chunk for chunk, score in chunks]
         context = "\n\n---\n\n".join(context_pieces)
 

@@ -14,9 +14,8 @@ from rag.pipeline import RAGPipeline
 
 limiter = Limiter(key_func=get_remote_address)
 
-# ─────────────────────────────────────────
-# 1. LIFESPAN — load pipeline once
-# ─────────────────────────────────────────
+
+# 1.LIFESPAN - load pipeline once
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,9 +32,8 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ─────────────────────────────────────────
-# 2. PYDANTIC MODELS
-# ─────────────────────────────────────────
+
+# 2.PYDANTIC MODELS
 
 class QueryRequest(BaseModel):
     question: str
@@ -59,9 +57,7 @@ class IngestResponse(BaseModel):
     doc_id: str
 
 
-# ─────────────────────────────────────────
-# 3. ROUTES
-# ─────────────────────────────────────────
+# 3.ROUTES
 
 @app.get("/health")
 async def health():
@@ -75,7 +71,6 @@ async def health():
 async def get_documents():
     """Returns list of all ingested documents."""
     return {"documents": app.state.pipeline.get_documents()}
-
 
 @app.post("/select-document/{doc_id}")
 async def select_document(doc_id: str):

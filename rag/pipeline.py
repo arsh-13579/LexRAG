@@ -76,7 +76,7 @@ class RAGPipeline:
 
         vectorstore = self._get_vectorstore(doc_id)
 
-        # get all chunks for BM25
+        # all chunks for BM25
         existing = vectorstore.get()
         chunks = existing["documents"] if existing and existing["documents"] else []
 
@@ -112,7 +112,7 @@ class RAGPipeline:
             "document_type": document_type
         }
 
-        # set as active document
+        # active document
         self._set_active_document(doc_id)
 
         return self.documents[doc_id]
@@ -148,13 +148,13 @@ class RAGPipeline:
                 "active_doc": None
             }
 
-        # stage 1 — hybrid retrieval
+        # step 1 hybrid retrieval
         retrieved_chunks = self.active_retriever.retrieve(question, k=k)
 
-        # stage 2 — reranking
+        # step 2 reranking
         reranked_chunks = self.reranker.rerank(question, retrieved_chunks, top_k=top_k)
 
-        # stage 3 — generation
+        # step 3 generation
         answer = self.generator.generate(question, reranked_chunks)
 
         # cache with size limit

@@ -28,7 +28,7 @@ class Reranker:
         # build query-chunk pairs for cross-encoder
         pairs = [[query, chunk] for chunk in chunks]
 
-        # score every pair
+        # score pair
         scores = self.model.predict(pairs)
 
         # zip chunks with their scores
@@ -37,5 +37,5 @@ class Reranker:
         # sort by score descending
         scored_chunks.sort(key=lambda x: x[1], reverse=True)
 
-        # return top_k with scores rounded for cleanliness
+        # return top_k with scores
         return [(chunk, round(float(score), 4)) for chunk, score in scored_chunks[:top_k]]

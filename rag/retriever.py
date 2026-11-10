@@ -15,7 +15,7 @@ class HybridRetriever:
         self.chunks = chunks
         self.rrf_k = rrf_k
 
-        # build BM25 index from chunks
+        # BM25 index from chunks
         tokenized_chunks = [chunk.lower().split() for chunk in chunks]
         self.bm25 = BM25Okapi(tokenized_chunks)
 
