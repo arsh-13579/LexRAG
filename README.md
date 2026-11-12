@@ -1,165 +1,131 @@
-# LexRAG — Intelligent Legal Document Assistant
-A production-grade Retrieval Augmented Generation (RAG) system built for legal document analysis. Upload court judgments, contracts, or compliance documents and ask precise legal questions — powered by hybrid search, cross-encoder reranking, and streaming LLM generation.
+# LexRAG: Legal Document Assistant
 
+Upload a legal PDF, ask questions in plain English, and get answers grounded in that document, with the exact source passages shown next to every answer. If the document doesn't contain the answer, LexRAG says so instead of guessing.
 
-## Live Demo
-Upload a PDF → Ask a legal question → Get a grounded, cited answer in seconds
+**Demo:** [60-second video](ADD_VIDEO_LINK) | [Live app](ADD_LIVE_LINK)
 
+![LexRAG screenshot](lexrag-demo.png)
 
-## Architecture
-PDF Upload
-    ↓
-Smart Legal Chunking (structure-aware for contracts, semantic for judgments)
-    ↓
-HuggingFace Embeddings → ChromaDB (persistent vector storage)
-    ↓
-Query comes in
-    ↓
-Hybrid Search: Vector Search (semantic) + BM25 (keyword) → RRF Fusion
-    ↓
-Cross-Encoder Re-ranking (top 20 → top 5)
-    ↓
-Grounded LLM Prompt → Groq (LLaMA 3.1)
-    ↓
-Streamed Answer + Sources with Relevance Scores
+## Results
 
+### Compared with ChatGPT and Gemini
 
-## Three-Way Comparison: LexRAG vs ChatGPT vs Gemini
-Tested on Sukanya Shantha v. Union of India [2024] INSC 753 — a landmark Supreme Court judgment on caste-based discrimination in prisons.
+Informal test on *Sukanya Shantha v. Union of India* [2024] INSC 753: one judgment, a handful of questions, response times measured by hand.
 
 | | LexRAG | ChatGPT | Gemini |
 |---|---|---|---|
-| Factual accuracy | ✅ Correct | ✅ Correct | ✅ Correct |
-| Response time | ✅ ~2.8s | ✅ ~2.9s | ❌ ~7s |
-| Hallucination on unknown questions | ✅ Refused to answer | ❌ Gave confident wrong answer | ❌ Gave confident wrong answer |
-| Sources cited with relevance scores | ✅ Yes | ❌ No | ❌ No |
-| Works on private documents | ✅ Yes | ⚠️ Uploads to OpenAI servers | ⚠️ Uploads to Google servers |
+| Questions answered in the document | Correct | Correct | Correct |
+| Questions the document cannot answer (events after the judgment) | "I cannot find this information" | Long answer from general knowledge | Long answer from general knowledge |
+| Shows source passages with relevance scores | Yes | No | No |
+| Response time | 2.5-3.1 s | 2.3-3.5 s | 6-9 s |
 
+The point is not that the other tools are wrong. When they answer from general knowledge, you cannot tell which parts came from your document. LexRAG only answers from the passages it retrieved, and shows them.
 
-## Tech Stack
-| Component | Technology | Why |
+### RAGAS evaluation
+
+5 questions on one NDA, scored with the RAGAS framework (LLM-as-judge):
+
+| Metric | Score | Measures |
 |---|---|---|
-| Backend | FastAPI | Async, fast, auto-docs |
-| Vector DB | ChromaDB | Persistent, local, no cost |
-| Embeddings | all-MiniLM-L6-v2 | Fast, good quality, free |
-| Keyword Search | BM25 (rank-bm25) | Exact term matching for legal citations |
-| Re-ranker | ms-marco-MiniLM-L-6-v2 | Trained on search relevance pairs |
-| LLM | Groq / LLaMA 3.1 | Fastest inference available, free tier |
-| PDF Parsing | pymupdf4llm | Fast, accurate text extraction |
-| Evaluation | RAGAS | Standardized RAG metrics |
+| Faithfulness | 1.00 | Answer is supported by the retrieved text |
+| Answer relevancy | 0.98 | Answer addresses the question |
+| Context recall | 1.00 | The needed passages were retrieved |
 
+Context precision timed out because of Groq free-tier rate limits, so it has no score. These numbers come from an earlier version of the pipeline (before the model change and per-document collections), and the test set is small. See Limitations.
 
-## Why These Design Choices
+## What it does
 
-### Hybrid Search (Vector + BM25)
-Legal documents contain exact citations, section numbers, and case references (e.g. "Section 4.2(b)", "Article 17 GDPR"). Pure vector search struggles with these because embedding models don't reliably capture rare exact tokens. BM25 keyword search handles this perfectly. Combining both via Reciprocal Rank Fusion (RRF) gives the best of both worlds — semantic understanding AND exact term matching.
+- Chunks documents differently by type: contracts by section headings, court judgments by meaning shifts (semantic chunking), everything else by paragraph and sentence boundaries
+- Hybrid search: vector search for meaning, BM25 for exact terms such as section numbers, merged with Reciprocal Rank Fusion
+- Cross-encoder reranking of the candidates before they reach the LLM
+- Answers streamed token by token, with source passages and relevance scores
+- Multiple documents, each in its own ChromaDB collection, switchable from the sidebar
+- Basic protections: rate limiting, upload size limit, question length limit, query cache
 
-### Two-Stage Retrieval + Cross-Encoder Reranking
-Bi-encoder embedding models are fast but approximate — they compress meaning into fixed-size vectors, losing nuance. A cross-encoder reads the query and each chunk together simultaneously, producing far more precise relevance scores. We use a two-stage approach: retrieve 20 candidates fast (bi-encoder), then rerank to top 5 precisely (cross-encoder). This keeps latency low while maximizing answer quality.
+## Architecture
 
-### Structure-Aware Chunking for Contracts
-Contracts have explicit section/clause structure. Using MarkdownHeaderTextSplitter before RecursiveCharacterTextSplitter respects this structure — each chunk stays within its section boundary, preventing context from bleeding across unrelated clauses.
+```
+PDF upload
+  -> text extraction (PyMuPDF4LLM, clean markdown)
+  -> chunking by document type
+       contract  : split on headings, then recursive
+       judgment  : semantic chunking
+       general   : recursive character splitting
+  -> embeddings (all-MiniLM-L6-v2) -> ChromaDB, one collection per document
 
-### Temperature = 0.0
-Legal answers must be precise and deterministic. Setting temperature to 0 ensures the LLM always picks the most probable token — no creative variation that could introduce inaccuracies in legal context.
-
-### Grounded Prompt Design
-The prompt explicitly instructs the LLM to answer using ONLY the retrieved context and say "I cannot find this information" when the answer isn't present. This directly improves faithfulness and prevents hallucination — critical for legal use cases.
-
-
-## Evaluation Results (RAGAS)
-Evaluated on 5 legal questions across an NDA document:
-
-| Metric | Score | What it measures |
-|---|---|---|
-| Faithfulness | 1.0000 | LLM answers grounded in context (no hallucination) |
-| Answer Relevancy | 0.9846 | Answers address the question asked |
-| Context Recall | 1.0000 | All necessary chunks retrieved |
-
-> Note: Context Precision timed out due to Groq free-tier rate limits during evaluation. All other metrics measured cleanly.
-
-
-## API Endpoints
-**GET /health** — Returns server status and loaded model names.
-
-**POST /ingest** — Upload a PDF document for ingestion.
-- `file`: PDF file (multipart/form-data)
-- `document_type`: `general` (default) or `contract`
-
-**POST /query** — Ask a question and get a complete answer with sources.
-
-```json
-{
-  "question": "What are the penalties for breach?",
-  "k": 10,
-  "top_k": 3
-}
+Question
+  -> hybrid retrieval: vector + BM25, merged with RRF (top 20 candidates)
+  -> cross-encoder reranking (top 5)
+  -> grounded prompt -> Groq (openai/gpt-oss-120b), streamed
+  -> answer + source passages with relevance scores
 ```
 
-**POST /query-stream** — Same as /query but streams tokens word by word.
+## Design decisions
 
+**Hybrid search.** Legal text is full of exact references ("Section 4.2(b)", "Article 17"). Embeddings capture meaning but handle rare exact tokens poorly, while BM25 does the opposite. Merging both rankings with RRF means a passage that ranks well in either list is not lost.
 
-## Project Structure
-lexrag/
-│
-├── main.py                  ← FastAPI app (routes, lifespan)
-├── index.html               ← Frontend (single file, served by FastAPI)
-├── rag/
-│   ├── chunker.py           ← Smart legal document chunking
-│   ├── embedder.py          ← HuggingFace embedding model loader
-│   ├── retriever.py         ← Hybrid search (vector + BM25 + RRF)
-│   ├── reranker.py          ← Cross-encoder reranking
-│   ├── generator.py         ← LLM prompt + streaming generation
-│   └── pipeline.py          ← Orchestrates full RAG pipeline
-├── evaluation/
-│   ├── ragas_eval.py        ← RAGAS evaluation suite
-│   └── results.json         ← Evaluation scores
-├── data/
-│   └── sample_docs/         ← Sample legal PDFs
-└── requirements.txt
+**Two-stage retrieval.** A bi-encoder is fast but approximate, because it embeds the question and passage separately. A cross-encoder reads them together and scores relevance more precisely, but is too slow to run over everything. So the bi-encoder and BM25 pick candidates and the cross-encoder picks the final passages.
 
+**Chunking by document type.** On a 213-page US Supreme Court opinion, plain recursive chunking missed several questions. Semantic chunking fixed several of them. Contracts have explicit headings, so splitting on them keeps each clause in one chunk.
 
-## Local Setup
+**Grounded prompt, temperature 0.** The prompt tells the model to answer only from the supplied passages and to say so when the answer is missing. That is what makes it refuse the questions the document cannot answer.
+
+**One collection per document.** Early on, all documents shared one collection, so a question about one case returned passages from another. Each document now has its own collection and you choose which one to query.
+
+## Tech stack
+
+| Part | Choice |
+|---|---|
+| Backend | FastAPI, async, streaming responses |
+| Vector store | ChromaDB (persistent) |
+| Embeddings | all-MiniLM-L6-v2 (sentence-transformers) |
+| Keyword search | BM25 (rank-bm25) |
+| Reranker | cross-encoder/ms-marco-MiniLM-L-6-v2 |
+| LLM | openai/gpt-oss-120b on Groq |
+| PDF parsing | PyMuPDF4LLM |
+| Evaluation | RAGAS |
+
+## Limitations
+
+- **Retrieval is sensitive to wording.** "Who wrote the majority opinion?" can miss a passage that says "delivered the opinion of the Court". Query rewriting or multi-query retrieval is the planned fix.
+- **Small evaluation.** 5 questions on one NDA, and the three-way comparison is one judgment. It is a first signal, not a benchmark.
+- **Text PDFs only.** No OCR for scanned documents, and English works best.
+- **Not hardened.** The BM25 index and query cache live in memory, and there is no authentication, so anyone who can reach the app can upload documents.
+- **Privacy.** The full document stays on the server, but the question and the top retrieved passages are sent to the Groq API to generate the answer.
+
+## Run locally
+
 ```bash
-# clone the repo
-git clone https://github.com/yourusername/lexrag.git
-cd lexrag
+git clone https://github.com/arsh-13579/LexRAG.git
+cd LexRAG
 
-# create virtual environment (Python 3.11 required)
-py -3.11 -m venv venv
-venv\Scripts\activate  # Windows
-source venv/bin/activate  # Mac/Linux
+python -m venv venv            # Python 3.11 recommended
+venv\Scripts\activate          # Windows
+# source venv/bin/activate     # macOS / Linux
 
-# install dependencies
 pip install -r requirements.txt
-
-# add your Groq API key
-echo "GROQ_API_KEY=your_key_here" > .env
-
-# run the server
-uvicorn main:app --reload
+copy .env.example .env         # use cp on macOS / Linux, then add your GROQ_API_KEY
+uvicorn main:app --port 8000
 ```
-Open `http://localhost:8000` in your browser.
 
+Open http://localhost:8000. The first run downloads two small models (about 200 MB).
 
-## Production Upgrade Path
-| Current | Production Upgrade | Why |
-|---|---|---|
-| ChromaDB (local) | Pinecone / Weaviate | Distributed, scalable vector search |
-| BM25 (in-memory) | Elasticsearch | Scalable keyword search, persistent |
-| In-memory cache | Redis | Persistent cache across restarts |
-| Single FastAPI instance | Load balancer + multiple instances | Handle concurrent users |
+## API
 
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Server status |
+| `GET /documents` | List ingested documents |
+| `POST /select-document/{doc_id}` | Choose the document to query |
+| `POST /ingest` | Upload a PDF (`document_type`: general, contract, judgment) |
+| `POST /query` | Question in, answer and sources out |
+| `POST /query-stream` | Same, streamed token by token |
 
-### Key Finding
-For questions about events not mentioned in the document (post-judgment implementation, 2025 developments), ChatGPT and Gemini generated detailed confident answers from their training data — impossible to verify what came from the document vs what was hallucinated. LexRAG correctly responded "I cannot find this information in the provided documents" — because it only answers from retrieved context.
+## Next steps
 
+- Query rewriting and multi-query retrieval to reduce wording sensitivity
+- A larger evaluation set (20-50 questions) and re-running RAGAS on the current pipeline
+- Docker and a public deployment
+- Authentication, and a persistent cache
 
-## What I Learned Building This
-- **Hybrid search matters for legal RAG** — pure vector search missed exact citations until BM25 was added
-- **Re-ranking dramatically improves precision** — cross-encoder correctly re-ordered results that bi-encoder ranked wrong
-- **Prompt design directly impacts faithfulness** — adding "ONLY use context" and "say I don't know" brought faithfulness to 1.0
-- **Chunking strategy depends on document type** — structure-aware chunking for contracts, recursive for free-form judgments
-
-
-Built by Mohammad Arsh | B.Tech Student
+Built by Mohammad Arsh | [LinkedIn](ADD_LINKEDIN_LINK) | [GitHub](https://github.com/arsh-13579)
