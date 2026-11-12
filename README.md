@@ -2,7 +2,7 @@
 
 Upload a legal PDF, ask questions in plain English, and get answers grounded in that document, with the exact source passages shown next to every answer. If the document doesn't contain the answer, LexRAG says so instead of guessing.
 
-**Demo:** [60-second video](ADD_VIDEO_LINK) | [Live app](ADD_LIVE_LINK)
+**Demo:** [60-second video](https://youtu.be/D4QRY-M-ZTg) 
 
 ![LexRAG screenshot](lexrag-demo.png)
 
